@@ -9,6 +9,8 @@ import sys
 import numpy
 
 files = (
+    #'bing-a.wav',
+    #'bing-c.wav',
     'bassdrum.wav',
     'snare.wav',
 )
