@@ -9,38 +9,40 @@
 const int BUFFER_SIZE = 10;
 int buffer[BUFFER_SIZE];
 
-const int THRESHOLD = 6;
+const int THRESHOLD = 12;
 
 int ticksSinceTriggered = 0;
 
-int led = 13;
-int MIN_WAIT = 30;
+const int led = 13;
+const int MIN_WAIT = 300;
+
+int position = 0;
+int sum = 0;
 
 // the setup routine runs once when you press reset:
 void setup() {
   // initialize serial communication at 9600 bits per second:
   Serial.begin(9600);
   pinMode(led, OUTPUT);
+  for(int i = 0; i < BUFFER_SIZE; ++i) {
+    buffer[i] = 0;
+  }
 }
 
 // the loop routine runs over and over again forever:
 void loop() {
-  int minValue = 1024;
-  int maxValue = 0;
-  for(int i = 0; i < BUFFER_SIZE; ++i) {
-    int value = analogRead(A0);
-    //buffer[i] = value;
-    minValue = min(minValue, value);
-    maxValue = max(maxValue, value);
-  }
-  // print out the value you read:
-  int diff = maxValue - minValue;
-  boolean above = diff > THRESHOLD;
-  if(above) {
-    if(ticksSinceTriggered > MIN_WAIT) {
-      ticksSinceTriggered = 0;
-      Serial.println(diff);
-    }
+  int value = analogRead(A0);
+  sum -= buffer[position];
+  buffer[position] = value;
+  sum += value;
+  position = (position + 1) % BUFFER_SIZE;
+
+  int diff = value * BUFFER_SIZE - sum;
+
+  boolean above = diff >= THRESHOLD * BUFFER_SIZE;
+  if(above && ticksSinceTriggered > MIN_WAIT) {
+    ticksSinceTriggered = 0;
+    Serial.println(diff);
   }
   digitalWrite(led, ticksSinceTriggered <= MIN_WAIT ? HIGH : LOW);
   ++ticksSinceTriggered;
