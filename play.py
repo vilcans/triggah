@@ -10,6 +10,7 @@ import sys
 import numpy
 
 use_serial = False
+use_scale = True
 
 files = (
     #'bing-a.wav',
@@ -18,6 +19,22 @@ files = (
     #'bassdrum.wav',
     #'snare.wav',
 )
+
+note_speeds = [s / 261.626 for s in [
+    261.626,
+    277.183,
+    293.665,
+    311.127,
+    329.628,
+    349.228,
+    369.994,
+    391.995,
+    415.305,
+    440.000,
+    466.164,
+    493.883,
+    523.251,
+]]
 
 def get_next_event():
     while True:
@@ -96,14 +113,22 @@ next_index = 0
 print 'streaming'
 while True:
     velocities = [sqrt(v) for v in get_next_event()]
-    t = velocities[0] / float(velocities[0] + velocities[1])
+    t = velocities[1] / float(velocities[0] + velocities[1])
+
     index = next_index
     next_index = (next_index + 1) % CHANNELS
+
+    if use_scale:
+        idx = int(t * len(note_speeds) * .9999)
+        speed = note_speeds[idx]
+        #print 'idx', idx
+    else:
+        speed = 1.0 + t
+
     positions[index] = 0
-    speed = 2.0 - t
-    print 't =', t
+    print 't =', t, 'speed =', speed
     speeds[index] = speed
-    volume = (velocities[0] + velocities[1]) * 2.8
+    volume = (velocities[0] + velocities[1]) * 1.5
     print volume
     volumes[index] = volume
     #print repr(velocities)
