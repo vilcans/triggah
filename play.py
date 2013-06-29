@@ -73,7 +73,7 @@ while True:
     velocities = get_next_event()
     for i, velocity in enumerate(velocities):
         positions[i] = 0
-        volume = max(.2, min(velocity * .1, 5.0)) * .2
+        volume = min(velocity * .1, 5.0) * 2.8
         volumes[i] = volume
     print repr(velocities)
 
