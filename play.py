@@ -15,10 +15,13 @@ files = (
 
 def get_next_event():
     line = serial.readline()
-    char = line[0]
-    return ord(char) - 48
+    note, velocity = line.split()
+    note = int(note)
+    velocity = int(velocity)
+    return (note, velocity)
 
-buffer = numpy.zeros(20000, dtype=np.int16)
+buffer = numpy.zeros(20000, dtype=float)
+buffer16 = numpy.zeros(20000, dtype=np.int16)
 
 def callback(in_data, frame_count, time_info, status):
 
@@ -27,10 +30,12 @@ def callback(in_data, frame_count, time_info, status):
         position = positions[index]
         if position < len(sample):
             count = min(frame_count, len(sample) - position)
-            buffer[:count] += sample[position : position + count]
-
-        positions[index] += frame_count
-    return (buffer.tostring(), pyaudio.paContinue)
+            buffer[:count] += sample[position : position + count] * volumes[index]
+            positions[index] += frame_count
+        else:
+            volumes[index] = 0
+    buffer16[:frame_count] = (buffer[:frame_count].clip(-1, 1) * 32767).astype(np.int16)
+    return (buffer16.tostring(), pyaudio.paContinue)
 
 
 serial = serial.Serial('/dev/ttyACM0', 9600)
@@ -47,10 +52,12 @@ for file in files:
     data = wf.readframes(100000)
     a = np.fromstring(data, dtype=np.int16)
     a.newbyteorder('>')
-    samples.append(a)
+    b = a.astype(float) / 32768.0
+    samples.append(b)
     wf.close()
 
 positions = [9999999] * len(samples)
+volumes = [0] * len(samples)
 
 p = pyaudio.PyAudio()
 
@@ -66,11 +73,11 @@ stream.start_stream()
 
 print 'streaming'
 while True:
-    v = get_next_event()
-    positions[v] = 0
-#while stream.is_active():
-#    time.sleep(0.1)
-print 'done streaming'
+    note, velocity = get_next_event()
+    positions[note] = 0
+    volume = max(.2, min(velocity * .1, 5.0)) * .2
+    volumes[note] = volume
+    print note, velocity, volume
 
 stream.stop_stream()
 stream.close()
