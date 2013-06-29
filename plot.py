@@ -7,21 +7,17 @@ import time
 
 from Tkinter import *
 
-WIDTH = 600
+WIDTH = 1200
 HEIGHT = 400
 
-
-class Plotter(Frame):
-
-    def __init__(self, master=None):
+class Plot(object):
+    def __init__(self, draw, color='black'):
+        self.draw = draw
+        self.color = color
         self.x = 0
         self.y = 0
         self.value = 0
         self.lines = []
-
-        Frame.__init__(self, master)
-        self.pack()
-        self.createWidgets()
 
     def step(self):
         last_x = self.x
@@ -29,19 +25,24 @@ class Plotter(Frame):
 
         t = time.time() - start_time
 
-        x = (t * 100)
-        self.x = (t * 100) % WIDTH
+        self.x = (t * 1000) % WIDTH
         self.y = HEIGHT - (self.value / 1024.0) * HEIGHT
         #self.y += (x // WIDTH) * 30
 
         if last_x < self.x:
-            line = self.draw.create_line(last_x, last_y, self.x, self.y)
+            line = self.draw.create_line(last_x, last_y, self.x, self.y, fill=self.color)
             self.lines.append(line)
         while len(self.lines) > 2000:
             line = self.lines.pop(0)
             self.draw.delete(line)
 
-        app.after(1, self.step)
+
+class Plotter(Frame):
+
+    def __init__(self, master=None):
+        Frame.__init__(self, master)
+        self.pack()
+        self.createWidgets()
 
     def createWidgets(self):
 
@@ -62,6 +63,10 @@ class Plotter(Frame):
 
 root = Tk()
 app = Plotter(master=root)
+plots = [
+    Plot(app.draw),
+    Plot(app.draw, color='red'),
+]
 
 class Worker(threading.Thread):
     def __init__(self):
@@ -71,12 +76,15 @@ class Worker(threading.Thread):
     def run(self):
         while not self._stop.isSet():
             line = serial.readline()
+            if line == '':
+                continue
             try:
-                v = int(line)
-            except ValueError:
-                pass
-            else:
-                app.value = v
+                values = line.split()
+                values = [int(v) for v in values]
+                plots[0].value = values[0]
+                plots[1].value = values[1]
+            except:
+                print 'Invalid', line
 
         print 'stopping'
 
@@ -84,11 +92,17 @@ class Worker(threading.Thread):
         self._stop.set()
 
 serial = serial.Serial('/dev/ttyACM0', 9600)
+serial.timeout = 1
 
 thread = Worker()
 start_time = time.time()
 thread.start()
 
-app.after_idle(app.step)
+def step():
+    for p in plots:
+        p.step()
+    app.after(1, step)
+
+app.after_idle(step)
 app.mainloop()
 thread.stop()
