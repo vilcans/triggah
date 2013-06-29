@@ -1,0 +1,4 @@
+triggah.hex
+*.o
+.dep/
+.lib/
