@@ -1,50 +1,62 @@
-/*
-  AnalogReadSerial
-  Reads an analog input on pin 0, prints the result to the serial monitor.
-  Attach the center pin of a potentiometer to pin A0, and the outside pins to +5V and ground.
- 
- This example code is in the public domain.
- */
 
-const int BUFFER_SIZE = 10;
-int buffer[BUFFER_SIZE];
+const int BUFFER_SIZE = 100;
 
-const int THRESHOLD = 12;
-
-int ticksSinceTriggered = 0;
+//const int THRESHOLD = 2 * BUFFER_SIZE;
+const int THRESHOLD = 1;
 
 const int led = 13;
-const int MIN_WAIT = 300;
+const int MIN_WAIT = 200;
 
 int position = 0;
-int sum = 0;
 
 // the setup routine runs once when you press reset:
 void setup() {
   // initialize serial communication at 9600 bits per second:
   Serial.begin(9600);
   pinMode(led, OUTPUT);
-  for(int i = 0; i < BUFFER_SIZE; ++i) {
-    buffer[i] = 0;
-  }
 }
+
+class Trigger {
+public:
+  byte id;
+  long buffer[BUFFER_SIZE];
+  int sum;
+  int ticksSinceTriggered = 0;
+
+  Trigger(byte id) : id(id), sum(0) {
+    for(int i = 0; i < BUFFER_SIZE; ++i) {
+      buffer[i] = 0;
+    }
+  }
+  int process(int value) {
+    sum -= buffer[position];
+    buffer[position] = value;
+    sum += value;
+
+    int diff = value * BUFFER_SIZE - sum;
+    boolean above = diff >= THRESHOLD;
+    if(above && ticksSinceTriggered > MIN_WAIT) {
+      ticksSinceTriggered = 0;
+      Serial.print((char)id);
+      Serial.print(' ');
+      Serial.println(diff);
+    }
+    else {
+      ++ticksSinceTriggered;
+    }
+  }
+  boolean isTriggered() {
+    return ticksSinceTriggered <= MIN_WAIT;
+  }
+};
 
 // the loop routine runs over and over again forever:
 void loop() {
-  int value = analogRead(A0);
-  sum -= buffer[position];
-  buffer[position] = value;
-  sum += value;
-  position = (position + 1) % BUFFER_SIZE;
-
-  int diff = value * BUFFER_SIZE - sum;
-
-  boolean above = diff >= THRESHOLD * BUFFER_SIZE;
-  if(above && ticksSinceTriggered > MIN_WAIT) {
-    ticksSinceTriggered = 0;
-    Serial.println(diff);
+  Trigger trigger0('0');
+  while(true) {
+    trigger0.process(analogRead(A0));
+    position = (position + 1) % BUFFER_SIZE;
+    digitalWrite(led, trigger0.isTriggered() ? HIGH : LOW);
   }
-  digitalWrite(led, ticksSinceTriggered <= MIN_WAIT ? HIGH : LOW);
-  ++ticksSinceTriggered;
 }
 
