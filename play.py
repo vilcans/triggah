@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from math import sqrt
 import numpy as np
 import serial
 import pyaudio
@@ -8,16 +9,26 @@ import time
 import sys
 import numpy
 
+use_serial = False
+
 files = (
     #'bing-a.wav',
+    'guitar.wav',
     #'bing-c.wav',
-    'bassdrum.wav',
-    'snare.wav',
+    #'bassdrum.wav',
+    #'snare.wav',
 )
 
 def get_next_event():
-    line = serial.readline()
-    return tuple(int(v) for v in line.split())
+    while True:
+        if use_serial:
+            line = serial.readline()
+        else:
+            line = raw_input()
+        strings = line.split()
+        if len(strings) != 2:
+            continue
+        return tuple(int(v) for v in line.split())
 
 buffer = numpy.zeros(20000, dtype=float)
 buffer16 = numpy.zeros(20000, dtype=np.int16)
@@ -26,18 +37,24 @@ def callback(in_data, frame_count, time_info, status):
 
     buffer[:] = 0
     for index, sample in enumerate(samples):
+        volume = volumes[index]
+        if volume == 0:
+            continue
         position = positions[index]
-        if position < len(sample):
-            count = min(frame_count, len(sample) - position)
-            buffer[:count] += sample[position : position + count] * volumes[index]
-            positions[index] += frame_count
-        else:
-            volumes[index] = 0
+        speed = speeds[index]
+        for target_index in xrange(frame_count):
+            if position >= len(sample):
+                volumes[index] = 0
+                break
+            buffer[target_index] += sample[int(position)] * volume
+            position += speed
+        positions[index] = int(position)
+
     buffer16[:frame_count] = (buffer[:frame_count].clip(-1, 1) * 32767).astype(np.int16)
     return (buffer16.tostring(), pyaudio.paContinue)
 
-
-serial = serial.Serial('/dev/ttyACM0', 9600)
+if use_serial:
+    serial = serial.Serial('/dev/ttyACM0', 9600)
 
 samples = []
 for file in files:
@@ -55,8 +72,13 @@ for file in files:
     samples.append(b)
     wf.close()
 
-positions = [9999999] * len(samples)
+CHANNELS = 4
+samples = [samples[0]] * CHANNELS
+
+#positions = [9999999] * len(samples)
+positions = [0] * len(samples)
 volumes = [0] * len(samples)
+speeds = [1.0] * len(samples)
 
 p = pyaudio.PyAudio()
 
@@ -70,14 +92,21 @@ stream = p.open(
 
 stream.start_stream()
 
+next_index = 0
 print 'streaming'
 while True:
-    velocities = get_next_event()
-    for i, velocity in enumerate(velocities):
-        positions[i] = 0
-        volume = velocity * 2.8
-        volumes[i] = volume
-    print repr(velocities)
+    velocities = [sqrt(v) for v in get_next_event()]
+    t = velocities[0] / float(velocities[0] + velocities[1])
+    index = next_index
+    next_index = (next_index + 1) % CHANNELS
+    positions[index] = 0
+    speed = 2.0 - t
+    print 't =', t
+    speeds[index] = speed
+    volume = (velocities[0] + velocities[1]) * 2.8
+    print volume
+    volumes[index] = volume
+    #print repr(velocities)
 
 stream.stop_stream()
 stream.close()
