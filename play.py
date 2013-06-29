@@ -15,10 +15,7 @@ files = (
 
 def get_next_event():
     line = serial.readline()
-    note, velocity = line.split()
-    note = int(note)
-    velocity = int(velocity)
-    return (note, velocity)
+    return tuple(int(v) for v in line.split())
 
 buffer = numpy.zeros(20000, dtype=float)
 buffer16 = numpy.zeros(20000, dtype=np.int16)
@@ -73,11 +70,12 @@ stream.start_stream()
 
 print 'streaming'
 while True:
-    note, velocity = get_next_event()
-    positions[note] = 0
-    volume = max(.2, min(velocity * .1, 5.0)) * .2
-    volumes[note] = volume
-    print note, velocity, volume
+    velocities = get_next_event()
+    for i, velocity in enumerate(velocities):
+        positions[i] = 0
+        volume = max(.2, min(velocity * .1, 5.0)) * .2
+        volumes[i] = volume
+    print repr(velocities)
 
 stream.stop_stream()
 stream.close()
