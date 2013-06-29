@@ -1,0 +1,4 @@
+Koppla:
+
+Jord - piezo - A0
++5V - motstånd - A0
